@@ -35,19 +35,20 @@ class Res2Net_vd():
     def net(self, input, class_dim=1000):
         layers = self.layers
         supported_layers = [50, 101, 152, 200]
-        assert layers in supported_layers, \
-            "supported layers are {} but input layer is {}".format(supported_layers, layers)
+        assert (
+            layers in supported_layers
+        ), f"supported layers are {supported_layers} but input layer is {layers}"
         basic_width = self.width * self.scales
         num_filters1 = [basic_width * t for t in [1, 2, 4, 8]]
         num_filters2 = [256 * t for t in [1, 2, 4, 8]]
-        if layers == 50:
-            depth = [3, 4, 6, 3]
-        elif layers == 101:
+        if layers == 101:
             depth = [3, 4, 23, 3]
         elif layers == 152:
             depth = [3, 8, 36, 3]
         elif layers == 200:
             depth = [3, 12, 48, 3]
+        elif layers == 50:
+            depth = [3, 4, 6, 3]
         conv = self.conv_bn_layer(input=input, num_filters=32, filter_size=3, stride=2, act='relu', name='conv1_1')
         conv = self.conv_bn_layer(input=conv, num_filters=32, filter_size=3, stride=1, act='relu', name='conv1_2')
         conv = self.conv_bn_layer(input=conv, num_filters=64, filter_size=3, stride=1, act='relu', name='conv1_3')
@@ -57,11 +58,11 @@ class Res2Net_vd():
             for i in range(depth[block]):
                 if layers in [101, 152] and block == 2:
                     if i == 0:
-                        conv_name = "res" + str(block + 2) + "a"
+                        conv_name = f"res{str(block + 2)}a"
                     else:
-                        conv_name = "res" + str(block + 2) + "b" + str(i)
+                        conv_name = f"res{str(block + 2)}b{str(i)}"
                 else:
-                    conv_name = "res" + str(block + 2) + chr(97 + i)
+                    conv_name = f"res{str(block + 2)}{chr(97 + i)}"
                 conv = self.bottleneck_block(
                     input=conv,
                     num_filters1=num_filters1[block],
@@ -89,19 +90,18 @@ class Res2Net_vd():
             padding=(filter_size - 1) // 2,
             groups=groups,
             act=None,
-            param_attr=ParamAttr(name=name + "_weights"),
-            bias_attr=False)
-        if name == "conv1":
-            bn_name = "bn_" + name
-        else:
-            bn_name = "bn" + name[3:]
+            param_attr=ParamAttr(name=f"{name}_weights"),
+            bias_attr=False,
+        )
+        bn_name = f"bn_{name}" if name == "conv1" else f"bn{name[3:]}"
         return fluid.layers.batch_norm(
             input=conv,
             act=act,
-            param_attr=ParamAttr(name=bn_name + '_scale'),
-            bias_attr=ParamAttr(bn_name + '_offset'),
-            moving_mean_name=bn_name + '_mean',
-            moving_variance_name=bn_name + '_variance')
+            param_attr=ParamAttr(name=f'{bn_name}_scale'),
+            bias_attr=ParamAttr(f'{bn_name}_offset'),
+            moving_mean_name=f'{bn_name}_mean',
+            moving_variance_name=f'{bn_name}_variance',
+        )
 
     def conv_bn_layer_new(self, input, num_filters, filter_size, stride=1, groups=1, act=None, name=None):
         pool = fluid.layers.pool2d(
@@ -115,35 +115,43 @@ class Res2Net_vd():
             padding=(filter_size - 1) // 2,
             groups=groups,
             act=None,
-            param_attr=ParamAttr(name=name + "_weights"),
-            bias_attr=False)
-        if name == "conv1":
-            bn_name = "bn_" + name
-        else:
-            bn_name = "bn" + name[3:]
+            param_attr=ParamAttr(name=f"{name}_weights"),
+            bias_attr=False,
+        )
+        bn_name = f"bn_{name}" if name == "conv1" else f"bn{name[3:]}"
         return fluid.layers.batch_norm(
             input=conv,
             act=act,
-            param_attr=ParamAttr(name=bn_name + '_scale'),
-            bias_attr=ParamAttr(bn_name + '_offset'),
-            moving_mean_name=bn_name + '_mean',
-            moving_variance_name=bn_name + '_variance')
+            param_attr=ParamAttr(name=f'{bn_name}_scale'),
+            bias_attr=ParamAttr(f'{bn_name}_offset'),
+            moving_mean_name=f'{bn_name}_mean',
+            moving_variance_name=f'{bn_name}_variance',
+        )
 
     def shortcut(self, input, ch_out, stride, name, if_first=False):
         ch_in = input.shape[1]
-        if ch_in != ch_out or stride != 1:
-            if if_first:
-                return self.conv_bn_layer(input, ch_out, 1, stride, name=name)
-            else:
-                return self.conv_bn_layer_new(input, ch_out, 1, stride, name=name)
-        elif if_first:
+        if (
+            (ch_in != ch_out or stride != 1)
+            and if_first
+            or ch_in == ch_out
+            and stride == 1
+            and if_first
+        ):
             return self.conv_bn_layer(input, ch_out, 1, stride, name=name)
+        elif ch_in != ch_out or stride != 1:
+            return self.conv_bn_layer_new(input, ch_out, 1, stride, name=name)
         else:
             return input
 
     def bottleneck_block(self, input, num_filters1, num_filters2, stride, name, if_first):
         conv0 = self.conv_bn_layer(
-            input=input, num_filters=num_filters1, filter_size=1, stride=1, act='relu', name=name + '_branch2a')
+            input=input,
+            num_filters=num_filters1,
+            filter_size=1,
+            stride=1,
+            act='relu',
+            name=f'{name}_branch2a',
+        )
 
         xs = fluid.layers.split(conv0, self.scales, 1)
         ys = []
@@ -156,7 +164,9 @@ class Res2Net_vd():
                         stride=stride,
                         filter_size=3,
                         act='relu',
-                        name=name + '_branch2b_' + str(s + 1)))
+                        name=f'{name}_branch2b_{str(s + 1)}',
+                    )
+                )
             else:
                 ys.append(
                     self.conv_bn_layer(
@@ -165,7 +175,9 @@ class Res2Net_vd():
                         stride=stride,
                         filter_size=3,
                         act='relu',
-                        name=name + '_branch2b_' + str(s + 1)))
+                        name=f'{name}_branch2b_{str(s + 1)}',
+                    )
+                )
 
         if stride == 1:
             ys.append(xs[-1])
@@ -175,48 +187,47 @@ class Res2Net_vd():
 
         conv1 = fluid.layers.concat(ys, axis=1)
         conv2 = self.conv_bn_layer(
-            input=conv1, num_filters=num_filters2, filter_size=1, act=None, name=name + "_branch2c")
+            input=conv1,
+            num_filters=num_filters2,
+            filter_size=1,
+            act=None,
+            name=f"{name}_branch2c",
+        )
 
-        short = self.shortcut(input, num_filters2, stride, if_first=if_first, name=name + "_branch1")
+        short = self.shortcut(
+            input, num_filters2, stride, if_first=if_first, name=f"{name}_branch1"
+        )
 
         return fluid.layers.elementwise_add(x=short, y=conv2, act='relu')
 
 
 def Res2Net50_vd_48w_2s():
-    model = Res2Net_vd(layers=50, scales=2, width=48)
-    return model
+    return Res2Net_vd(layers=50, scales=2, width=48)
 
 
 def Res2Net50_vd_26w_4s():
-    model = Res2Net_vd(layers=50, scales=4, width=26)
-    return model
+    return Res2Net_vd(layers=50, scales=4, width=26)
 
 
 def Res2Net50_vd_14w_8s():
-    model = Res2Net_vd(layers=50, scales=8, width=14)
-    return model
+    return Res2Net_vd(layers=50, scales=8, width=14)
 
 
 def Res2Net50_vd_26w_6s():
-    model = Res2Net_vd(layers=50, scales=6, width=26)
-    return model
+    return Res2Net_vd(layers=50, scales=6, width=26)
 
 
 def Res2Net50_vd_26w_8s():
-    model = Res2Net_vd(layers=50, scales=8, width=26)
-    return model
+    return Res2Net_vd(layers=50, scales=8, width=26)
 
 
 def Res2Net101_vd_26w_4s():
-    model = Res2Net_vd(layers=101, scales=4, width=26)
-    return model
+    return Res2Net_vd(layers=101, scales=4, width=26)
 
 
 def Res2Net152_vd_26w_4s():
-    model = Res2Net_vd(layers=152, scales=4, width=26)
-    return model
+    return Res2Net_vd(layers=152, scales=4, width=26)
 
 
 def Res2Net200_vd_26w_4s():
-    model = Res2Net_vd(layers=200, scales=4, width=26)
-    return model
+    return Res2Net_vd(layers=200, scales=4, width=26)

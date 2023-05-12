@@ -41,12 +41,10 @@ class MobileNetV2Dishes(hub.Module):
         return 224
 
     def get_pretrained_images_mean(self):
-        im_mean = np.array([0.485, 0.456, 0.406]).reshape(1, 3)
-        return im_mean
+        return np.array([0.485, 0.456, 0.406]).reshape(1, 3)
 
     def get_pretrained_images_std(self):
-        im_std = np.array([0.229, 0.224, 0.225]).reshape(1, 3)
-        return im_std
+        return np.array([0.229, 0.224, 0.225]).reshape(1, 3)
 
     def _set_config(self):
         """
@@ -140,16 +138,13 @@ class MobileNetV2Dishes(hub.Module):
                     "Environment Variable CUDA_VISIBLE_DEVICES is not set correctly. If you wanna use gpu, please set CUDA_VISIBLE_DEVICES as cuda_device_id."
                 )
 
-        all_data = list()
-        for yield_data in reader(images, paths):
-            all_data.append(yield_data)
-
+        all_data = list(reader(images, paths))
         total_num = len(all_data)
         loop_num = int(np.ceil(total_num / batch_size))
 
-        res = list()
+        res = []
         for iter_id in range(loop_num):
-            batch_data = list()
+            batch_data = []
             handle_id = iter_id * batch_size
             for image_id in range(batch_size):
                 try:
@@ -190,8 +185,7 @@ class MobileNetV2Dishes(hub.Module):
         Run as a service.
         """
         images_decode = [base64_to_cv2(image) for image in images]
-        results = self.classification(images=images_decode, **kwargs)
-        return results
+        return self.classification(images=images_decode, **kwargs)
 
     @runnable
     def run_cmd(self, argvs):
@@ -199,18 +193,22 @@ class MobileNetV2Dishes(hub.Module):
         Run as a command.
         """
         self.parser = argparse.ArgumentParser(
-            description="Run the {} module.".format(self.name),
-            prog='hub run {}'.format(self.name),
+            description=f"Run the {self.name} module.",
+            prog=f'hub run {self.name}',
             usage='%(prog)s',
-            add_help=True)
+            add_help=True,
+        )
         self.arg_input_group = self.parser.add_argument_group(title="Input options", description="Input data. Required")
         self.arg_config_group = self.parser.add_argument_group(
             title="Config options", description="Run configuration for controlling module behavior, not required.")
         self.add_module_config_arg()
         self.add_module_input_arg()
         args = self.parser.parse_args(argvs)
-        results = self.classification(paths=[args.input_path], batch_size=args.batch_size, use_gpu=args.use_gpu)
-        return results
+        return self.classification(
+            paths=[args.input_path],
+            batch_size=args.batch_size,
+            use_gpu=args.use_gpu,
+        )
 
     def add_module_config_arg(self):
         """

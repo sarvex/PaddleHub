@@ -49,16 +49,18 @@ class ConvBNLayer(nn.Layer):
             stride=stride,
             padding=padding,
             groups=num_groups,
-            weight_attr=ParamAttr(initializer=MSRA(), name=name + "_weights"),
-            bias_attr=False)
+            weight_attr=ParamAttr(initializer=MSRA(), name=f"{name}_weights"),
+            bias_attr=False,
+        )
 
         self._batch_norm = BatchNorm(
             num_filters,
             act=act,
-            param_attr=ParamAttr(name + "_bn_scale"),
-            bias_attr=ParamAttr(name + "_bn_offset"),
-            moving_mean_name=name + "_bn_mean",
-            moving_variance_name=name + "_bn_variance")
+            param_attr=ParamAttr(f"{name}_bn_scale"),
+            bias_attr=ParamAttr(f"{name}_bn_offset"),
+            moving_mean_name=f"{name}_bn_mean",
+            moving_variance_name=f"{name}_bn_variance",
+        )
 
     def forward(self, inputs: paddle.Tensor):
         y = self._conv(inputs)
@@ -86,7 +88,8 @@ class DepthwiseSeparable(nn.Layer):
             stride=stride,
             padding=1,
             num_groups=int(num_groups * scale),
-            name=name + "_dw")
+            name=f"{name}_dw",
+        )
 
         self._pointwise_conv = ConvBNLayer(
             num_channels=int(num_filters1 * scale),
@@ -94,7 +97,8 @@ class DepthwiseSeparable(nn.Layer):
             num_filters=int(num_filters2 * scale),
             stride=1,
             padding=0,
-            name=name + "_sep")
+            name=f"{name}_sep",
+        )
 
     def forward(self, inputs: paddle.Tensor):
         y = self._depthwise_conv(inputs)
@@ -119,124 +123,150 @@ class MobileNetV1(nn.Layer):
         self.block_list = []
 
         self.conv1 = ConvBNLayer(
-            num_channels=3, filter_size=3, channels=3, num_filters=int(32), stride=2, padding=1, name="conv1")
+            num_channels=3,
+            filter_size=3,
+            channels=3,
+            num_filters=32,
+            stride=2,
+            padding=1,
+            name="conv1",
+        )
 
         conv2_1 = self.add_sublayer(
             "conv2_1",
             sublayer=DepthwiseSeparable(
-                num_channels=int(32),
+                num_channels=32,
                 num_filters1=32,
                 num_filters2=64,
                 num_groups=32,
                 stride=1,
                 scale=1,
-                name="conv2_1"))
+                name="conv2_1",
+            ),
+        )
         self.block_list.append(conv2_1)
 
         conv2_2 = self.add_sublayer(
             "conv2_2",
             sublayer=DepthwiseSeparable(
-                num_channels=int(64),
+                num_channels=64,
                 num_filters1=64,
                 num_filters2=128,
                 num_groups=64,
                 stride=2,
                 scale=1,
-                name="conv2_2"))
+                name="conv2_2",
+            ),
+        )
         self.block_list.append(conv2_2)
 
         conv3_1 = self.add_sublayer(
             "conv3_1",
             sublayer=DepthwiseSeparable(
-                num_channels=int(128),
+                num_channels=128,
                 num_filters1=128,
                 num_filters2=128,
                 num_groups=128,
                 stride=1,
                 scale=1,
-                name="conv3_1"))
+                name="conv3_1",
+            ),
+        )
         self.block_list.append(conv3_1)
 
         conv3_2 = self.add_sublayer(
             "conv3_2",
             sublayer=DepthwiseSeparable(
-                num_channels=int(128),
+                num_channels=128,
                 num_filters1=128,
                 num_filters2=256,
                 num_groups=128,
                 stride=2,
                 scale=1,
-                name="conv3_2"))
+                name="conv3_2",
+            ),
+        )
         self.block_list.append(conv3_2)
 
         conv4_1 = self.add_sublayer(
             "conv4_1",
             sublayer=DepthwiseSeparable(
-                num_channels=int(256),
+                num_channels=256,
                 num_filters1=256,
                 num_filters2=256,
                 num_groups=256,
                 stride=1,
                 scale=1,
-                name="conv4_1"))
+                name="conv4_1",
+            ),
+        )
         self.block_list.append(conv4_1)
 
         conv4_2 = self.add_sublayer(
             "conv4_2",
             sublayer=DepthwiseSeparable(
-                num_channels=int(256),
+                num_channels=256,
                 num_filters1=256,
                 num_filters2=512,
                 num_groups=256,
                 stride=2,
                 scale=1,
-                name="conv4_2"))
+                name="conv4_2",
+            ),
+        )
         self.block_list.append(conv4_2)
 
         for i in range(5):
             conv5 = self.add_sublayer(
-                "conv5_" + str(i + 1),
+                f"conv5_{str(i + 1)}",
                 sublayer=DepthwiseSeparable(
-                    num_channels=int(512),
+                    num_channels=512,
                     num_filters1=512,
                     num_filters2=512,
                     num_groups=512,
                     stride=1,
                     scale=1,
-                    name="conv5_" + str(i + 1)))
+                    name=f"conv5_{str(i + 1)}",
+                ),
+            )
             self.block_list.append(conv5)
 
         conv5_6 = self.add_sublayer(
             "conv5_6",
             sublayer=DepthwiseSeparable(
-                num_channels=int(512),
+                num_channels=512,
                 num_filters1=512,
                 num_filters2=1024,
                 num_groups=512,
                 stride=2,
                 scale=1,
-                name="conv5_6"))
+                name="conv5_6",
+            ),
+        )
         self.block_list.append(conv5_6)
 
         conv6 = self.add_sublayer(
             "conv6",
             sublayer=DepthwiseSeparable(
-                num_channels=int(1024),
+                num_channels=1024,
                 num_filters1=1024,
                 num_filters2=1024,
                 num_groups=1024,
                 stride=1,
                 scale=1,
-                name="conv6"))
+                name="conv6",
+            ),
+        )
         self.block_list.append(conv6)
 
         self.pool2d_avg = AdaptiveAvgPool2d(1)
 
         self.out = Linear(
-            int(1024),
+            1024,
             class_dim,
             weight_attr=ParamAttr(initializer=MSRA(), name="fc7_weights"),
-            bias_attr=ParamAttr(name="fc7_offset"))
+            bias_attr=ParamAttr(name="fc7_offset"),
+        )
 
         if load_checkpoint is not None:
             model_dict = paddle.load(load_checkpoint)[0]

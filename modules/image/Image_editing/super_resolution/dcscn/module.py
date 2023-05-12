@@ -86,12 +86,9 @@ class Dcscn(hub.Module):
                     "Environment Variable CUDA_VISIBLE_DEVICES is not set correctly. If you wanna use gpu, please set CUDA_VISIBLE_DEVICES as cuda_device_id."
                 )
 
-        all_data = list()
-        for yield_data in reader(images, paths):
-            all_data.append(yield_data)
-
+        all_data = list(reader(images, paths))
         total_num = len(all_data)
-        res = list()
+        res = []
 
         for i in range(total_num):
             image_x = np.array([all_data[i]['img_x']])
@@ -154,10 +151,11 @@ class Dcscn(hub.Module):
         Run as a command.
         """
         self.parser = argparse.ArgumentParser(
-            description="Run the {} module.".format(self.name),
-            prog='hub run {}'.format(self.name),
+            description=f"Run the {self.name} module.",
+            prog=f'hub run {self.name}',
             usage='%(prog)s',
-            add_help=True)
+            add_help=True,
+        )
 
         self.arg_input_group = self.parser.add_argument_group(title="Input options", description="Input data. Required")
         self.arg_config_group = self.parser.add_argument_group(

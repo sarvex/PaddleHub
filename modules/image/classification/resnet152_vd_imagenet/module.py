@@ -50,19 +50,18 @@ class ConvBNLayer(nn.Layer):
             stride=stride,
             padding=(filter_size - 1) // 2,
             groups=groups,
-            weight_attr=ParamAttr(name=name + "_weights"),
-            bias_attr=False)
-        if name == "conv1":
-            bn_name = "bn_" + name
-        else:
-            bn_name = "bn" + name[3:]
+            weight_attr=ParamAttr(name=f"{name}_weights"),
+            bias_attr=False,
+        )
+        bn_name = f"bn_{name}" if name == "conv1" else f"bn{name[3:]}"
         self._batch_norm = BatchNorm(
             num_filters,
             act=act,
-            param_attr=ParamAttr(name=bn_name + '_scale'),
-            bias_attr=ParamAttr(bn_name + '_offset'),
-            moving_mean_name=bn_name + '_mean',
-            moving_variance_name=bn_name + '_variance')
+            param_attr=ParamAttr(name=f'{bn_name}_scale'),
+            bias_attr=ParamAttr(f'{bn_name}_offset'),
+            moving_mean_name=f'{bn_name}_mean',
+            moving_variance_name=f'{bn_name}_variance',
+        )
 
     def forward(self, inputs: paddle.Tensor):
         if self.is_vd_mode:
@@ -85,16 +84,27 @@ class BottleneckBlock(nn.Layer):
         super(BottleneckBlock, self).__init__()
 
         self.conv0 = ConvBNLayer(
-            num_channels=num_channels, num_filters=num_filters, filter_size=1, act='relu', name=name + "_branch2a")
+            num_channels=num_channels,
+            num_filters=num_filters,
+            filter_size=1,
+            act='relu',
+            name=f"{name}_branch2a",
+        )
         self.conv1 = ConvBNLayer(
             num_channels=num_filters,
             num_filters=num_filters,
             filter_size=3,
             stride=stride,
             act='relu',
-            name=name + "_branch2b")
+            name=f"{name}_branch2b",
+        )
         self.conv2 = ConvBNLayer(
-            num_channels=num_filters, num_filters=num_filters * 4, filter_size=1, act=None, name=name + "_branch2c")
+            num_channels=num_filters,
+            num_filters=num_filters * 4,
+            filter_size=1,
+            act=None,
+            name=f"{name}_branch2c",
+        )
 
         if not shortcut:
             self.short = ConvBNLayer(
@@ -102,8 +112,9 @@ class BottleneckBlock(nn.Layer):
                 num_filters=num_filters * 4,
                 filter_size=1,
                 stride=1,
-                is_vd_mode=False if if_first else True,
-                name=name + "_branch1")
+                is_vd_mode=not if_first,
+                name=f"{name}_branch1",
+            )
 
         self.shortcut = shortcut
 
@@ -112,10 +123,7 @@ class BottleneckBlock(nn.Layer):
         conv1 = self.conv1(y)
         conv2 = self.conv2(conv1)
 
-        if self.shortcut:
-            short = inputs
-        else:
-            short = self.short(inputs)
+        short = inputs if self.shortcut else self.short(inputs)
         y = paddle.elementwise_add(x=short, y=conv2, act='relu')
         return y
 
@@ -138,9 +146,15 @@ class BasicBlock(nn.Layer):
             filter_size=3,
             stride=stride,
             act='relu',
-            name=name + "_branch2a")
+            name=f"{name}_branch2a",
+        )
         self.conv1 = ConvBNLayer(
-            num_channels=num_filters, num_filters=num_filters, filter_size=3, act=None, name=name + "_branch2b")
+            num_channels=num_filters,
+            num_filters=num_filters,
+            filter_size=3,
+            act=None,
+            name=f"{name}_branch2b",
+        )
 
         if not shortcut:
             self.short = ConvBNLayer(
@@ -148,8 +162,9 @@ class BasicBlock(nn.Layer):
                 num_filters=num_filters,
                 filter_size=1,
                 stride=1,
-                is_vd_mode=False if if_first else True,
-                name=name + "_branch1")
+                is_vd_mode=not if_first,
+                name=f"{name}_branch1",
+            )
 
         self.shortcut = shortcut
 
@@ -157,10 +172,7 @@ class BasicBlock(nn.Layer):
         y = self.conv0(inputs)
         conv1 = self.conv1(y)
 
-        if self.shortcut:
-            short = inputs
-        else:
-            short = self.short(inputs)
+        short = inputs if self.shortcut else self.short(inputs)
         y = paddle.elementwise_add(x=short, y=conv1, act='relu')
         return y
 
@@ -182,7 +194,6 @@ class ResNet152_vd(nn.Layer):
 
         self.layers = 152
 
-        depth = [3, 8, 36, 3]
         num_channels = [64, 256, 512, 1024]
         num_filters = [64, 128, 256, 512]
 
@@ -193,16 +204,17 @@ class ResNet152_vd(nn.Layer):
 
         self.block_list = []
 
+        depth = [3, 8, 36, 3]
         for block in range(len(depth)):
             shortcut = False
             for i in range(depth[block]):
                 if block == 2:
                     if i == 0:
-                        conv_name = "res" + str(block + 2) + "a"
+                        conv_name = f"res{str(block + 2)}a"
                     else:
-                        conv_name = "res" + str(block + 2) + "b" + str(i)
+                        conv_name = f"res{str(block + 2)}b{str(i)}"
                 else:
-                    conv_name = "res" + str(block + 2) + chr(97 + i)
+                    conv_name = f"res{str(block + 2)}{chr(97 + i)}"
 
                 bottleneck_block = self.add_sublayer(
                     'bb_%d_%d' % (block, i),
@@ -235,8 +247,8 @@ class ResNet152_vd(nn.Layer):
             checkpoint = os.path.join(self.directory, 'resnet152_vd_imagenet.pdparams')
             if not os.path.exists(checkpoint):
                 os.system(
-                    'wget https://paddlehub.bj.bcebos.com/dygraph/image_classification/resnet152_vd_imagenet.pdparams -O '
-                    + checkpoint)
+                    f'wget https://paddlehub.bj.bcebos.com/dygraph/image_classification/resnet152_vd_imagenet.pdparams -O {checkpoint}'
+                )
             model_dict = paddle.load(checkpoint)[0]
             self.set_dict(model_dict)
             print("load pretrained checkpoint success")

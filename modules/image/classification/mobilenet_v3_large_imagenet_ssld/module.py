@@ -54,7 +54,6 @@ class MobileNetV3Large(nn.Layer):
     def __init__(self, dropout_prob: float = 0.2, class_dim: int = 1000, load_checkpoint: str = None):
         super(MobileNetV3Large, self).__init__()
 
-        inplanes = 16
         self.cfg = [
             # k, exp, c,  se,     nl,  s,
             [3, 16, 16, False, "relu", 1],
@@ -76,6 +75,7 @@ class MobileNetV3Large(nn.Layer):
         self.cls_ch_squeeze = 960
         self.cls_ch_expand = 1280
 
+        inplanes = 16
         self.conv1 = ConvBNLayer(
             in_c=3,
             out_c=make_divisible(inplanes),
@@ -88,9 +88,8 @@ class MobileNetV3Large(nn.Layer):
             name="conv1")
 
         self.block_list = []
-        i = 0
         inplanes = make_divisible(inplanes)
-        for (k, exp, c, se, nl, s) in self.cfg:
+        for i, (k, exp, c, se, nl, s) in enumerate(self.cfg):
             self.block_list.append(
                 ResidualUnit(
                     in_c=inplanes,
@@ -100,11 +99,11 @@ class MobileNetV3Large(nn.Layer):
                     stride=s,
                     use_se=se,
                     act=nl,
-                    name="conv" + str(i + 2)))
-            self.add_sublayer(sublayer=self.block_list[-1], name="conv" + str(i + 2))
+                    name=f"conv{str(i + 2)}",
+                )
+            )
+            self.add_sublayer(sublayer=self.block_list[-1], name=f"conv{str(i + 2)}")
             inplanes = make_divisible(c)
-            i += 1
-
         self.last_second_conv = ConvBNLayer(
             in_c=inplanes,
             out_c=make_divisible(self.cls_ch_squeeze),
@@ -141,8 +140,8 @@ class MobileNetV3Large(nn.Layer):
             checkpoint = os.path.join(self.directory, 'mobilenet_v3_large_ssld.pdparams')
             if not os.path.exists(checkpoint):
                 os.system(
-                    'wget https://paddlehub.bj.bcebos.com/dygraph/image_classification/mobilenet_v3_large_ssld.pdparams -O '
-                    + checkpoint)
+                    f'wget https://paddlehub.bj.bcebos.com/dygraph/image_classification/mobilenet_v3_large_ssld.pdparams -O {checkpoint}'
+                )
             model_dict = paddle.load(checkpoint)[0]
             self.set_dict(model_dict)
             print("load pretrained checkpoint success")
@@ -186,15 +185,21 @@ class ConvBNLayer(nn.Layer):
             stride=stride,
             padding=padding,
             groups=num_groups,
-            weight_attr=ParamAttr(name=name + "_weights"),
-            bias_attr=False)
+            weight_attr=ParamAttr(name=f"{name}_weights"),
+            bias_attr=False,
+        )
         self.bn = BatchNorm(
             num_channels=out_c,
             act=None,
-            param_attr=ParamAttr(name=name + "_bn_scale", regularizer=L2Decay(0.0)),
-            bias_attr=ParamAttr(name=name + "_bn_offset", regularizer=L2Decay(0.0)),
-            moving_mean_name=name + "_bn_mean",
-            moving_variance_name=name + "_bn_variance")
+            param_attr=ParamAttr(
+                name=f"{name}_bn_scale", regularizer=L2Decay(0.0)
+            ),
+            bias_attr=ParamAttr(
+                name=f"{name}_bn_offset", regularizer=L2Decay(0.0)
+            ),
+            moving_mean_name=f"{name}_bn_mean",
+            moving_variance_name=f"{name}_bn_variance",
+        )
 
     def forward(self, x: paddle.Tensor):
         x = self.conv(x)
@@ -227,7 +232,15 @@ class ResidualUnit(nn.Layer):
         self.if_se = use_se
 
         self.expand_conv = ConvBNLayer(
-            in_c=in_c, out_c=mid_c, filter_size=1, stride=1, padding=0, if_act=True, act=act, name=name + "_expand")
+            in_c=in_c,
+            out_c=mid_c,
+            filter_size=1,
+            stride=1,
+            padding=0,
+            if_act=True,
+            act=act,
+            name=f"{name}_expand",
+        )
         self.bottleneck_conv = ConvBNLayer(
             in_c=mid_c,
             out_c=mid_c,
@@ -237,11 +250,20 @@ class ResidualUnit(nn.Layer):
             num_groups=mid_c,
             if_act=True,
             act=act,
-            name=name + "_depthwise")
+            name=f"{name}_depthwise",
+        )
         if self.if_se:
-            self.mid_se = SEModule(mid_c, name=name + "_se")
+            self.mid_se = SEModule(mid_c, name=f"{name}_se")
         self.linear_conv = ConvBNLayer(
-            in_c=mid_c, out_c=out_c, filter_size=1, stride=1, padding=0, if_act=False, act=None, name=name + "_linear")
+            in_c=mid_c,
+            out_c=out_c,
+            filter_size=1,
+            stride=1,
+            padding=0,
+            if_act=False,
+            act=None,
+            name=f"{name}_linear",
+        )
 
     def forward(self, inputs: paddle.Tensor):
         x = self.expand_conv(inputs)
@@ -266,16 +288,18 @@ class SEModule(nn.Layer):
             kernel_size=1,
             stride=1,
             padding=0,
-            weight_attr=ParamAttr(name=name + "_1_weights"),
-            bias_attr=ParamAttr(name=name + "_1_offset"))
+            weight_attr=ParamAttr(name=f"{name}_1_weights"),
+            bias_attr=ParamAttr(name=f"{name}_1_offset"),
+        )
         self.conv2 = Conv2d(
             in_channels=channel // reduction,
             out_channels=channel,
             kernel_size=1,
             stride=1,
             padding=0,
-            weight_attr=ParamAttr(name + "_2_weights"),
-            bias_attr=ParamAttr(name=name + "_2_offset"))
+            weight_attr=ParamAttr(f"{name}_2_weights"),
+            bias_attr=ParamAttr(name=f"{name}_2_offset"),
+        )
 
     def forward(self, inputs: paddle.Tensor):
         outputs = self.avg_pool(inputs)

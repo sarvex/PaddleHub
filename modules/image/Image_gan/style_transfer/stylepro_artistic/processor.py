@@ -71,8 +71,9 @@ def scatter_numpy(dim, index, src):
     idx_xsection_shape = index.shape[:dim] + index.shape[dim + 1:]
     dst_xsection_shape = dst.shape[:dim] + dst.shape[dim + 1:]
     if idx_xsection_shape != dst_xsection_shape:
-        raise ValueError("Except for dimension " + str(dim) +
-                         ", all dimensions of index and output should be the same size")
+        raise ValueError(
+            f"Except for dimension {str(dim)}, all dimensions of index and output should be the same size"
+        )
     if (index >= dst.shape[dim]).any() or (index < 0).any():
         raise IndexError("The values of index must be between 0 and {}.".format(dst.shape[dim] - 1))
 
@@ -91,11 +92,14 @@ def scatter_numpy(dim, index, src):
 
     if not np.isscalar(src):
         if index.shape[dim] > src.shape[dim]:
-            raise IndexError("Dimension " + str(dim) + "of index can not be bigger than that of src ")
+            raise IndexError(
+                f"Dimension {str(dim)}of index can not be bigger than that of src "
+            )
         src_xsection_shape = src.shape[:dim] + src.shape[dim + 1:]
         if idx_xsection_shape != src_xsection_shape:
-            raise ValueError("Except for dimension " + str(dim) +
-                             ", all dimensions of index and src should be the same size")
+            raise ValueError(
+                f"Except for dimension {str(dim)}, all dimensions of index and src should be the same size"
+            )
         # src_idx is a NumPy advanced index for indexing of elements in the src
         src_idx = list(idx)
         src_idx.pop(dim)

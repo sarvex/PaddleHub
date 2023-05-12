@@ -41,13 +41,18 @@ class MobileNetV2():
         input = self.conv_bn_layer(
             input, num_filters=int(32 * scale), filter_size=3, stride=2, padding=1, if_act=True, name='conv1_1')
 
-        # bottleneck sequences
-        i = 1
         in_c = int(32 * scale)
-        for layer_setting in bottleneck_params_list:
+        for i, layer_setting in enumerate(bottleneck_params_list, start=2):
             t, c, n, s = layer_setting
-            i += 1
-            input = self.invresi_blocks(input=input, in_c=in_c, t=t, c=int(c * scale), n=n, s=s, name='conv' + str(i))
+            input = self.invresi_blocks(
+                input=input,
+                in_c=in_c,
+                t=t,
+                c=int(c * scale),
+                n=n,
+                s=s,
+                name=f'conv{i}',
+            )
             in_c = int(c * scale)
         #last_conv
         input = self.conv_bn_layer(
@@ -88,19 +93,18 @@ class MobileNetV2():
             groups=num_groups,
             act=None,
             use_cudnn=use_cudnn,
-            param_attr=ParamAttr(name=name + '_weights'),
-            bias_attr=False)
-        bn_name = name + '_bn'
+            param_attr=ParamAttr(name=f'{name}_weights'),
+            bias_attr=False,
+        )
+        bn_name = f'{name}_bn'
         bn = fluid.layers.batch_norm(
             input=conv,
-            param_attr=ParamAttr(name=bn_name + "_scale"),
-            bias_attr=ParamAttr(name=bn_name + "_offset"),
-            moving_mean_name=bn_name + '_mean',
-            moving_variance_name=bn_name + '_variance')
-        if if_act:
-            return fluid.layers.relu6(bn)
-        else:
-            return bn
+            param_attr=ParamAttr(name=f"{bn_name}_scale"),
+            bias_attr=ParamAttr(name=f"{bn_name}_offset"),
+            moving_mean_name=f'{bn_name}_mean',
+            moving_variance_name=f'{bn_name}_variance',
+        )
+        return fluid.layers.relu6(bn) if if_act else bn
 
     def shortcut(self, input, data_residual):
         return fluid.layers.elementwise_add(input, data_residual)
@@ -125,7 +129,8 @@ class MobileNetV2():
             padding=0,
             num_groups=1,
             if_act=True,
-            name=name + '_expand')
+            name=f'{name}_expand',
+        )
 
         bottleneck_conv = self.conv_bn_layer(
             input=channel_expand,
@@ -135,8 +140,9 @@ class MobileNetV2():
             padding=padding,
             num_groups=num_expfilter,
             if_act=True,
-            name=name + '_dwise',
-            use_cudnn=False)
+            name=f'{name}_dwise',
+            use_cudnn=False,
+        )
 
         linear_out = self.conv_bn_layer(
             input=bottleneck_conv,
@@ -146,10 +152,10 @@ class MobileNetV2():
             padding=0,
             num_groups=1,
             if_act=False,
-            name=name + '_linear')
+            name=f'{name}_linear',
+        )
         if ifshortcut:
-            out = self.shortcut(input=input, data_residual=linear_out)
-            return out
+            return self.shortcut(input=input, data_residual=linear_out)
         else:
             return linear_out
 
@@ -163,7 +169,8 @@ class MobileNetV2():
             filter_size=3,
             padding=1,
             expansion_factor=t,
-            name=name + '_1')
+            name=f'{name}_1',
+        )
 
         last_residual_block = first_block
         last_c = c
@@ -178,5 +185,6 @@ class MobileNetV2():
                 filter_size=3,
                 padding=1,
                 expansion_factor=t,
-                name=name + '_' + str(i + 1))
+                name=f'{name}_{str(i + 1)}',
+            )
         return last_residual_block

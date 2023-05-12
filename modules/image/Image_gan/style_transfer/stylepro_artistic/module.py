@@ -119,7 +119,7 @@ class StyleProjection(hub.Module):
                 # interpolation
                 accumulate += predict_outputs[0].as_ndarray()[0] * component['style_interpolation_weights'][idx]
             # postprocess
-            save_im_name = 'ndarray_{}.jpg'.format(time.time())
+            save_im_name = f'ndarray_{time.time()}.jpg'
             result = postprocess(accumulate, output_dir, save_im_name, visualization, size=(w, h))
             im_output.append(result)
         return im_output
@@ -187,10 +187,11 @@ class StyleProjection(hub.Module):
         Run as a command.
         """
         self.parser = argparse.ArgumentParser(
-            description="Run the {} module.".format(self.name),
-            prog='hub run {}'.format(self.name),
+            description=f"Run the {self.name} module.",
+            prog=f'hub run {self.name}',
             usage='%(prog)s',
-            add_help=True)
+            add_help=True,
+        )
 
         self.arg_input_group = self.parser.add_argument_group(title="Input options", description="Input data. Required")
         self.arg_config_group = self.parser.add_argument_group(
@@ -202,9 +203,13 @@ class StyleProjection(hub.Module):
             paths = [{'content': args.content, 'styles': args.styles.split(',')}]
         else:
             paths = [{'content': args.content, 'styles': args.styles.split(','), 'weights': list(args.weights)}]
-        results = self.style_transfer(
-            paths=paths, alpha=args.alpha, use_gpu=args.use_gpu, output_dir=args.output_dir, visualization=True)
-        return results
+        return self.style_transfer(
+            paths=paths,
+            alpha=args.alpha,
+            use_gpu=args.use_gpu,
+            output_dir=args.output_dir,
+            visualization=True,
+        )
 
     def add_module_config_arg(self):
         """

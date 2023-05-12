@@ -43,15 +43,17 @@ class ConvBNLayer(nn.Layer):
             stride=stride,
             padding=padding,
             groups=num_groups,
-            weight_attr=ParamAttr(name=name + "_weights"),
-            bias_attr=False)
+            weight_attr=ParamAttr(name=f"{name}_weights"),
+            bias_attr=False,
+        )
 
         self._batch_norm = BatchNorm(
             num_filters,
-            param_attr=ParamAttr(name=name + "_bn_scale"),
-            bias_attr=ParamAttr(name=name + "_bn_offset"),
-            moving_mean_name=name + "_bn_mean",
-            moving_variance_name=name + "_bn_variance")
+            param_attr=ParamAttr(name=f"{name}_bn_scale"),
+            bias_attr=ParamAttr(name=f"{name}_bn_offset"),
+            moving_mean_name=f"{name}_bn_mean",
+            moving_variance_name=f"{name}_bn_variance",
+        )
 
     def forward(self, inputs: paddle.Tensor, if_act: bool = True):
         y = self._conv(inputs)
@@ -76,7 +78,8 @@ class InvertedResidualUnit(nn.Layer):
             stride=1,
             padding=0,
             num_groups=1,
-            name=name + "_expand")
+            name=f"{name}_expand",
+        )
 
         self._bottleneck_conv = ConvBNLayer(
             num_channels=num_expfilter,
@@ -85,7 +88,8 @@ class InvertedResidualUnit(nn.Layer):
             stride=stride,
             padding=padding,
             num_groups=num_expfilter,
-            name=name + "_dwise")
+            name=f"{name}_dwise",
+        )
 
         self._linear_conv = ConvBNLayer(
             num_channels=num_expfilter,
@@ -94,7 +98,8 @@ class InvertedResidualUnit(nn.Layer):
             stride=1,
             padding=0,
             num_groups=1,
-            name=name + "_linear")
+            name=f"{name}_linear",
+        )
 
     def forward(self, inputs: paddle.Tensor, ifshortcut: bool):
         y = self._expand_conv(inputs, if_act=True)
@@ -119,12 +124,13 @@ class InversiBlocks(nn.Layer):
             filter_size=3,
             padding=1,
             expansion_factor=t,
-            name=name + "_1")
+            name=f"{name}_1",
+        )
 
         self._block_list = []
         for i in range(1, n):
             block = self.add_sublayer(
-                name + "_" + str(i + 1),
+                f"{name}_{str(i + 1)}",
                 sublayer=InvertedResidualUnit(
                     num_channels=c,
                     num_in_filter=c,
@@ -133,7 +139,9 @@ class InversiBlocks(nn.Layer):
                     filter_size=3,
                     padding=1,
                     expansion_factor=t,
-                    name=name + "_" + str(i + 1)))
+                    name=f"{name}_{str(i + 1)}",
+                ),
+            )
             self._block_list.append(block)
 
     def forward(self, inputs: paddle.Tensor):
@@ -158,22 +166,29 @@ class MobileNet(nn.Layer):
     def __init__(self, class_dim: int = 1000, load_checkpoint: str = None):
         super(MobileNet, self).__init__()
 
-        self.class_dim = class_dim
-
         bottleneck_params_list = [(1, 16, 1, 1), (6, 24, 2, 2), (6, 32, 3, 2), (6, 64, 4, 2), (6, 96, 3, 1),
                                   (6, 160, 3, 2), (6, 320, 1, 1)]
 
+        self.class_dim = class_dim
         self.conv1 = ConvBNLayer(
-            num_channels=3, num_filters=int(32), filter_size=3, stride=2, padding=1, name="conv1_1")
+            num_channels=3,
+            num_filters=32,
+            filter_size=3,
+            stride=2,
+            padding=1,
+            name="conv1_1",
+        )
 
         self.block_list = []
-        i = 1
-        in_c = int(32)
-        for layer_setting in bottleneck_params_list:
+        in_c = 32
+        for i, layer_setting in enumerate(bottleneck_params_list, start=2):
             t, c, n, s = layer_setting
-            i += 1
             block = self.add_sublayer(
-                "conv" + str(i), sublayer=InversiBlocks(in_c=in_c, t=t, c=int(c), n=n, s=s, name="conv" + str(i)))
+                f"conv{i}",
+                sublayer=InversiBlocks(
+                    in_c=in_c, t=t, c=int(c), n=n, s=s, name=f"conv{i}"
+                ),
+            )
             self.block_list.append(block)
             in_c = int(c)
 
@@ -195,8 +210,8 @@ class MobileNet(nn.Layer):
             checkpoint = os.path.join(self.directory, 'mobilenet_v2_imagenet.pdparams')
             if not os.path.exists(checkpoint):
                 os.system(
-                    'wget https://paddlehub.bj.bcebos.com/dygraph/image_classification/mobilenet_v2_imagenet.pdparams -O '
-                    + checkpoint)
+                    f'wget https://paddlehub.bj.bcebos.com/dygraph/image_classification/mobilenet_v2_imagenet.pdparams -O {checkpoint}'
+                )
             model_dict = paddle.load(checkpoint)[0]
             self.set_dict(model_dict)
             print("load pretrained checkpoint success")
